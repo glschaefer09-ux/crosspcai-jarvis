@@ -163,6 +163,9 @@ def _win_uninstall() -> dict:
 # -- Linux ---------------------------------------------------------------------
 
 def _linux_desktop_entry(exec_cmd: str, autostart: bool = False) -> str:
+    # Path= is not optional for a source install: the launcher starts the app
+    # from $HOME, where `python3 -m jarvis` cannot find the package. Without
+    # this the icon is created successfully and then does nothing when clicked.
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
@@ -170,6 +173,7 @@ def _linux_desktop_entry(exec_cmd: str, autostart: bool = False) -> str:
         "GenericName=CrossPCAI Control Centre\n"
         "Comment=Chat, agents, sandbox and Slack in one app\n"
         f"Exec={exec_cmd}\n"
+        f"Path={_working_dir()}\n"
         "Icon=jarvis\n"
         "Terminal=false\n"
         "Categories=Utility;Development;Network;\n"
