@@ -1,0 +1,15 @@
+# Build output
+build/
+dist/
+*.spec.bak
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local state — never commit a customer's config, database or token
+.crosspcai/
+*.db
+*.db-wal
+*.db-shm
+license.json
+agent_token

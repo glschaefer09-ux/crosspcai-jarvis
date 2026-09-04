@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=JARVIS
+GenericName=CrossPCAI Control Centre
+Comment=Chat, agents, sandbox and Slack in one app
+Exec=/opt/jarvis/jarvis
+Icon=jarvis
+Terminal=false
+Categories=Utility;Development;Network;
+Keywords=ai;agents;automation;crosspcai;jarvis;
+StartupNotify=true
+StartupWMClass=JARVIS
+SingleMainWindow=true

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JARVIS — CrossPCAI</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="shell">
+
+  <!-- ── Top bar ─────────────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div class="brand"><span class="orb" id="orb"></span> JARVIS</div>
+
+    <select class="node-switch" id="node-switch" title="Which machine you are operating">
+      <option value="local">This machine</option>
+    </select>
+
+    <div class="pills">
+      <span class="pill" id="pill-license"><span class="dot"></span><span>—</span></span>
+      <span class="pill" id="pill-model"><span class="dot"></span><span>Model</span></span>
+      <span class="pill" id="pill-hermes"><span class="dot"></span><span>Hermes</span></span>
+      <span class="pill" id="pill-sandbox"><span class="dot"></span><span>Sandbox</span></span>
+    </div>
+  </header>
+
+  <!-- ── Left rail ───────────────────────────────────────────────────── -->
+  <aside id="rail">
+    <nav class="nav" id="nav">
+      <button data-view="chat" class="active"><span class="ico">◆</span><span class="label">Chat</span></button>
+      <button data-view="agents"><span class="ico">⬡</span><span class="label">Agents</span></button>
+      <button data-view="sandbox"><span class="ico">▣</span><span class="label">Sandbox</span></button>
+      <button data-view="slack"><span class="ico">◈</span><span class="label">Slack</span></button>
+      <button data-view="connectors"><span class="ico">⇄</span><span class="label">Connectors</span></button>
+      <button data-view="tools"><span class="ico">⚙</span><span class="label">Tools</span></button>
+      <button data-view="nodes"><span class="ico">◉</span><span class="label">Machines</span></button>
+      <button data-view="reports"><span class="ico">↑</span><span class="label">Reports</span><span class="badge" id="needs-badge" hidden>0</span></button>
+      <button data-view="system"><span class="ico">▤</span><span class="label">System</span></button>
+      <button data-view="settings"><span class="ico">⚒</span><span class="label">Settings</span></button>
+    </nav>
+
+    <div class="rail-section">
+      <span id="rail-title">Sessions</span>
+      <button class="btn ghost sm" id="rail-new" title="New session">+</button>
+    </div>
+    <div class="rail-list" id="rail-list"></div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- Chat -->
+    <section class="view active" data-view="chat">
+      <div id="chat-log"></div>
+      <div id="composer">
+        <div class="wrap">
+          <textarea id="chat-input" rows="1"
+            placeholder="Ask JARVIS, or give it an instruction…  (Enter to send, Shift+Enter for a new line)"></textarea>
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agents -->
+    <section class="view" data-view="agents">
+      <div class="view-head">
+        <div><h2>Agents</h2><div class="sub">Build an agent, give it a brief, let it work</div></div>
+        <div class="spacer"></div>
+        <button class="btn primary" id="agent-new">New agent</button>
+      </div>
+      <div class="view-body"><div class="grid" id="agents-grid"></div></div>
+    </section>
+
+    <!-- Sandbox -->
+    <section class="view" data-view="sandbox">
+      <div class="view-head">
+        <div><h2>Sandbox</h2><div class="sub">An isolated workspace — commands run here, not on your desktop</div></div>
+        <div class="spacer"></div>
+        <button class="btn sm" id="sb-refresh">Refresh files</button>
+      </div>
+      <div class="view-body">
+        <div class="split">
+          <div class="stack" style="overflow:hidden">
+            <div class="term" id="sb-term"><span class="dim">Sandbox ready. Type a command below.</span></div>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="sb-cmd" placeholder="ls -la" class="mono">
+              <button class="btn primary" id="sb-run">Run</button>
+            </div>
+          </div>
+          <div class="stack" style="overflow:hidden">
+            <div class="card" style="flex:1;overflow-y:auto">
+              <h3>Files</h3>
+              <div class="meta" id="sb-dir"></div>
+              <div id="sb-files" style="margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slack -->
+    <section class="view" data-view="slack">
+      <div class="view-head">
+        <div><h2>Slack</h2><div class="sub" id="slack-sub">Read channels and post from inside JARVIS</div></div>
+        <div class="spacer"></div>
+        <button class="btn sm" id="slack-refresh">Refresh</button>
+      </div>
+      <div style="flex:1;overflow:hidden" id="slack-container"></div>
+    </section>
+
+    <!-- Connectors -->
+    <section class="view" data-view="connectors">
+      <div class="view-head">
+        <div><h2>Connectors</h2><div class="sub">What JARVIS can reach. Build your own, or ask us to.</div></div>
+        <div class="spacer"></div>
+        <button class="btn" id="conn-request">Request a connector</button>
+        <button class="btn primary" id="conn-new">Add connector</button>
+      </div>
+      <div class="view-body">
+        <h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Built in</h3>
+        <div class="grid" id="conn-catalog"></div>
+        <h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:26px 0 12px">Yours</h3>
+        <div class="grid" id="conn-custom"></div>
+      </div>
+    </section>
+
+    <!-- Tools -->
+    <section class="view" data-view="tools">
+      <div class="view-head">
+        <div><h2>Tools</h2><div class="sub">Named actions your agents can call</div></div>
+        <div class="spacer"></div>
+        <button class="btn" id="tool-request">Request a tool</button>
+        <button class="btn primary" id="tool-new">New tool</button>
+      </div>
+      <div class="view-body"><div class="grid" id="tools-grid"></div></div>
+    </section>
+
+    <!-- Machines -->
+    <section class="view" data-view="nodes">
+      <div class="view-head">
+        <div><h2>Machines</h2><div class="sub">One interface, every machine you installed JARVIS on</div></div>
+        <div class="spacer"></div>
+        <button class="btn" id="node-scan">Scan network</button>
+        <button class="btn primary" id="node-add">Pair a machine</button>
+      </div>
+      <div class="view-body"><div class="grid" id="nodes-grid"></div></div>
+    </section>
+
+    <!-- Reports -->
+    <section class="view" data-view="reports">
+      <div class="view-head">
+        <div><h2>Reports</h2>
+          <div class="sub">Things you needed and did not have. Nothing is sent unless you send it.</div></div>
+        <div class="spacer"></div>
+        <button class="btn" id="needs-add">Add a request</button>
+        <button class="btn primary" id="needs-send-all">Send all</button>
+      </div>
+      <div class="view-body">
+        <div class="card" id="needs-consent" style="margin-bottom:16px" hidden>
+          <div class="row-between">
+            <div>
+              <h3>Reporting is off</h3>
+              <div class="meta">Requests are being saved on this machine only. Turn reporting on
+                if you want CrossPCAI to receive them and build what is missing.</div>
+            </div>
+            <button class="btn primary" data-goto="settings">Privacy settings</button>
+          </div>
+        </div>
+        <div id="needs-list" class="stack"></div>
+      </div>
+    </section>
+
+    <!-- System -->
+    <section class="view" data-view="system">
+      <div class="view-head">
+        <div><h2>System</h2><div class="sub">Services JARVIS runs for you</div></div>
+        <div class="spacer"></div>
+        <button class="btn sm" id="sys-refresh">Refresh</button>
+      </div>
+      <div class="view-body">
+        <div class="grid" id="sys-services"></div>
+        <h3 style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:26px 0 12px">Activity</h3>
+        <div class="card"><div id="sys-events" class="mono" style="max-height:320px;overflow-y:auto"></div></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="view" data-view="settings">
+      <div class="view-head"><div><h2>Settings</h2><div class="sub" id="settings-sub"></div></div></div>
+      <div class="view-body" id="settings-body"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── First-run wizard ──────────────────────────────────────────────── -->
+<div class="modal-bg" id="wizard">
+  <div class="modal">
+    <div class="head">
+      <h3 id="wiz-title">Welcome to JARVIS</h3>
+      <div class="sub" id="wiz-sub">A few questions and it will set itself up.</div>
+    </div>
+    <div class="steps" id="wiz-steps"></div>
+    <div class="body" id="wiz-body"></div>
+    <div class="foot">
+      <button class="btn ghost" id="wiz-back">Back</button>
+      <button class="btn primary" id="wiz-next">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Generic modal ─────────────────────────────────────────────────── -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="head"><h3 id="modal-title"></h3><div class="sub" id="modal-sub"></div></div>
+    <div class="body" id="modal-body"></div>
+    <div class="foot">
+      <button class="btn ghost" id="modal-cancel">Cancel</button>
+      <button class="btn primary" id="modal-ok">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
