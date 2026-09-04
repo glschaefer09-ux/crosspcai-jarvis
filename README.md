@@ -107,6 +107,39 @@ Loopback traffic is trusted, so the desktop window needs no login. Anything
 arriving over the network must carry the token, so `--server` on a shared
 network does not hand the machine away.
 
+### Phones and tablets
+
+Desktops are **nodes** — JARVIS dials into them. Phones are **devices** — they
+dial in to JARVIS. A handset cannot host Hermes or a sandbox and comes and goes
+from the network, so it registers itself instead of being dialled, and then
+long-polls for work. Nothing listens on the handset: no inbound port, no push
+dependency in the control path.
+
+The Android and iOS apps live in the CrossPCAI repo under `mobile/android` and
+`mobile/ios`. Pair one and it appears under **Machines › Phones and tablets**,
+where you can see its battery, network, app version and last check-in, queue a
+command, revoke it, or remove it.
+
+Two built-in agents own the fleet — **Android Fleet** (`android-fleet`) and
+**iOS Fleet** (`ios-fleet`). They read `/api/mobile/devices`, flag handsets that
+have gone stale, are stuck on an old build, or are reporting an error, and queue
+commands rather than asking you to pick the phone up. The commands are an
+allowlist (`mobile.COMMANDS`), matched by an identical allowlist in each app, so
+a confused agent cannot invent an instruction the app was never built to refuse:
+
+| Command | What it does |
+| --- | --- |
+| `ping` | Ask the device to check in immediately |
+| `refresh` | Re-register and clear cached state |
+| `collect_logs` | Return model, OS, app version, battery, network, last error |
+| `report_needs` | Push anything the device recorded as missing |
+| `update_check` | Report the build it is running |
+| `sign_out` | Un-pair it — the app returns to the pairing screen |
+
+A device presenting the shared token is already trusted to drive the API, so
+pairing adds no second secret. What it does add is an `approved` flag: revoke a
+lost handset from Machines without rotating the token on every other machine.
+
 ---
 
 ## Reports: how customer needs reach the build queue
