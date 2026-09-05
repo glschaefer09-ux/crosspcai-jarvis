@@ -427,7 +427,7 @@ def agents_delete(_app, m, _q, _b) -> dict:
 
 @route("POST", "/api/agents/<aid>/run")
 def agents_run(app: App, m, _q, body) -> dict:
-    return agents.run(m["aid"], body.get("input", ""), app.hermes)
+    return agents.run(m["aid"], body.get("input", ""), app)
 
 
 @route("GET", "/api/agents/<aid>/runs")

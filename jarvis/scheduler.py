@@ -161,7 +161,7 @@ def due_agents(now: float | None = None) -> list[dict]:
 
 
 class Scheduler:
-    """Background thread that dispatches due agents onto the Hermes queue."""
+    """Background thread that runs due agents."""
 
     def __init__(self, app, interval: float = 30.0):
         self.app = app
@@ -192,15 +192,15 @@ class Scheduler:
                 store.log_event("scheduler", f"Tick failed: {e}", level="error")
 
     def tick(self) -> list[str]:
-        """Fire everything due. Returns the ids that were dispatched."""
+        """Fire everything due. Returns the ids that were started."""
         fired = []
         for a in due_agents():
-            res = agents.run(a["id"], DEFAULT_BRIEF, self.app.hermes)
+            res = agents.run(a["id"], DEFAULT_BRIEF, self.app)
             if res.get("ok"):
                 fired.append(a["id"])
                 store.log_event("scheduler",
                                 f"{a['name']} ran on schedule ({a['schedule']})",
-                                meta={"agent": a["id"], "task": res.get("task_id")})
+                                meta={"agent": a["id"], "run": res.get("run_id")})
             else:
                 store.log_event("scheduler",
                                 f"{a['name']} was due but could not start: "

@@ -3,8 +3,9 @@
 agents.py — customer-facing agent creation and dispatch.
 
 Customers build their own agents in the JARVIS UI: a name, a role prompt,
-which connectors it may touch, and an optional schedule. Agents run by
-dispatching work to the Hermes queue, so a slow agent never blocks the UI.
+which connectors it may touch, and an optional schedule. A run sends that
+brief to the model with tools available, on a worker thread so a slow agent
+never blocks the UI.
 
 Every agent a customer creates is a signal about what the product is missing.
 Definitions are handed to telemetry (with consent) so the CrossPCAI workforce
@@ -14,6 +15,7 @@ can build the connectors and tools those agents are reaching for.
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 
@@ -190,29 +192,86 @@ def delete(aid: str) -> bool:
 
 # ── Running ───────────────────────────────────────────────────────────────────
 
-def run(aid: str, task_input: str, hermes) -> dict:
-    """Dispatch one agent run onto the Hermes queue."""
+def run(aid: str, task_input: str, app) -> dict:
+    """Actually run an agent: its brief goes to the model, with tools.
+
+    This used to post the brief to the Hermes queue. That daemon executes only
+    strings beginning with `$`, so every agent run was filed as an unread note
+    and nothing ever thought about it - the agents looked busy and did nothing.
+    The model call happens on a worker thread so a slow agent never blocks the
+    UI, which was the only real reason to involve the queue.
+    """
     agent = get(aid)
     if not agent:
         return {"ok": False, "error": "agent not found"}
     if not agent["enabled"]:
         return {"ok": False, "error": "agent is disabled"}
 
-    brief = f"{agent['prompt']}\n\nTask: {task_input}".strip() if agent["prompt"] else task_input
-    res = hermes.dispatch(brief, priority="normal", agent_id=aid)
-
     now = time.time()
     c = store.connect()
-    c.execute(
-        "INSERT INTO agent_runs (agent_id,task_id,input,status,created_at) VALUES (?,?,?,?,?)",
-        (aid, res.get("id"), task_input, "queued" if res.get("ok") else "failed", now),
-    )
+    cur = c.execute(
+        "INSERT INTO agent_runs (agent_id,task_id,input,status,created_at) "
+        "VALUES (?,?,?,?,?)", (aid, None, task_input, "running", now))
+    run_id = cur.lastrowid
     c.execute("UPDATE agents SET last_run=?, run_count=run_count+1 WHERE id=?", (now, aid))
     c.commit()
-    store.log_event("agents", f"{agent['name']} dispatched a task",
-                    meta={"agent": aid, "task": res.get("id")})
-    return {"ok": res.get("ok", False), "agent": agent["name"],
-            "task_id": res.get("id"), "error": res.get("error")}
+
+    threading.Thread(target=_execute, args=(agent, task_input, app, run_id),
+                     daemon=True, name=f"agent-{aid}").start()
+    return {"ok": True, "agent": agent["name"], "run_id": run_id, "status": "running"}
+
+
+def _execute(agent: dict, task_input: str, app, run_id: int) -> None:
+    """One agent turn: model, optional tool call, then the model's summary."""
+    from .connectors.chat import strip_tool_call
+
+    system = agent["prompt"] or f"You are {agent['name']}. {agent['role']}"
+    try:
+        from . import tools as tools_mod
+        spec = tools_mod.spec_for_model()
+        if spec:
+            system = f"{system}\n\n{spec}"
+    except Exception:  # noqa: BLE001 - a tool listing failure must not stop the run
+        pass
+
+    messages = [{"role": "user", "content": task_input or
+                 "Carry out your standing brief and report what you found."}]
+    status, summary, actions = "done", "", []
+
+    try:
+        res = app.chat.complete(messages, system=system)
+        text = res.get("text", "")
+        call = res.get("tool_call")
+
+        if call:
+            outcome = app.run_tool_call(call)
+            actions.append({"tool": call.get("tool"), "ok": outcome.get("ok")})
+            follow = messages + [
+                {"role": "assistant", "content": text},
+                {"role": "user",
+                 "content": f"Tool result:\n{json.dumps(outcome)[:2000]}\n\n"
+                            "Summarise what actually happened. If it failed, say so."},
+            ]
+            second = app.chat.complete(follow, system=system, tools=False)
+            text = f"{strip_tool_call(text)}\n\n{second.get('text', '')}".strip()
+
+        summary = text
+        if not res.get("ok"):
+            status = "failed"
+    except Exception as e:  # noqa: BLE001 - record the failure, never crash the thread
+        status, summary = "failed", f"{type(e).__name__}: {e}"
+
+    c = store.connect()
+    c.execute("UPDATE agent_runs SET status=?, result=? WHERE id=?",
+              (status, json.dumps({"summary": summary[:8000], "actions": actions}), run_id))
+    c.commit()
+    store.log_event(
+        "agents",
+        (f"{agent['name']} finished" if status == "done"
+         else f"{agent['name']} failed: {summary[:150]}"),
+        level="info" if status == "done" else "error",
+        meta={"agent": agent["id"], "run": run_id},
+    )
 
 
 def runs(aid: str, limit: int = 50) -> list[dict]:
