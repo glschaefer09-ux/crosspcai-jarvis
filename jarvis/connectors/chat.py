@@ -31,6 +31,10 @@ Available tools:
   sandbox.exec   {"cmd": "..."}
   slack.send     {"channel": "#name", "text": "..."}
   status.check   {}
+  opencode.run   {"prompt": "...", "directory": "/path"}   hand real coding
+                 work to the OpenCode agent on this machine (it edits files
+                 and runs commands; prefer it over sandbox.exec for anything
+                 that changes a project)
 
 Emit at most one tool block per reply. After the result comes back, continue.
 If no tool is needed, just answer.

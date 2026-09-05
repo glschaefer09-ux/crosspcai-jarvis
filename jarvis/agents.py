@@ -58,6 +58,18 @@ BUILTIN = [
     ("sales", "Sales Outreach", "Sequenced outreach and reply detection",
      "Draft outreach for new leads, watch for replies, and hand warm replies "
      "to a human with the full thread context."),
+    # The one agent that changes code. It does not edit anything itself - it
+    # briefs OpenCode, which has the editing tools and its own permission
+    # prompts, and then reports back what actually changed.
+    ("coder", "Coder", "Hands real coding work to OpenCode on this machine",
+     "You turn a request into a precise brief for the OpenCode agent running "
+     "on this machine, using the opencode.run tool. State the working "
+     "directory and exactly what should change. Prefer one focused task over "
+     "a sweeping one. When OpenCode reports back, summarise what it actually "
+     "changed - files touched, commands run - and say plainly if it failed or "
+     "stopped early rather than implying the work is done. If OpenCode is not "
+     "installed or its model credentials are broken, say so and record it in "
+     "Reports instead of falling back to blind shell commands."),
     # One fleet agent per mobile platform. They are separate rather than a
     # single "Mobile" agent because the two stores, release cadences and crash
     # formats have almost nothing in common — a merged brief would be vague in

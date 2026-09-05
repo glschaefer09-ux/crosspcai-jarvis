@@ -23,11 +23,12 @@ import urllib.parse
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
-from . import (agents, config, installer, license, mobile, needs, nodes, store,
-               telemetry, tools)
+from . import (agents, config, installer, license, mobile, needs, nodes,
+               scheduler as sched, store, telemetry, tools)
 from .connectors import registry
 from .connectors.chat import ChatProvider, strip_tool_call
 from .connectors.hermes import Hermes
+from .connectors.opencode import OpenCode
 from .connectors.sandbox import Sandbox
 from .connectors.slack import Slack
 from .services.common import JsonHandler
@@ -57,7 +58,9 @@ class App:
         self.chat = ChatProvider(self.cfg.get("chat", {}))
         self.slack = Slack(self.cfg.get("slack", {}).get("bot_token", ""),
                            self.cfg.get("slack", {}).get("default_channel", ""))
+        self.opencode = OpenCode(self.cfg.get("opencode", {}))
         self.supervisor = Supervisor(host)
+        self.scheduler = sched.Scheduler(self)
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -68,9 +71,12 @@ class App:
             self.supervisor.begin_watch()
         if telemetry.enabled():
             telemetry.begin_flusher()
+        # Scheduled agents only fire while something is running to fire them.
+        self.scheduler.start()
         store.log_event("app", f"JARVIS {config.VERSION} started")
 
     def shutdown(self) -> None:
+        self.scheduler.stop()
         self.supervisor.stop_all()
 
     def reload_config(self, cfg: dict) -> None:
@@ -84,6 +90,7 @@ class App:
         svc = cfg.get("services", {})
         self.hermes = Hermes(host, svc.get("hermes", {}).get("port", 5562), self.token)
         self.sandbox = Sandbox(host, svc.get("sandbox", {}).get("port", 5561), self.token)
+        self.opencode = OpenCode(cfg.get("opencode", {}))
 
     @property
     def configured(self) -> bool:
@@ -146,6 +153,17 @@ class App:
         if name == "tool.run":
             return tools.invoke(args.get("name", ""), args.get("args", {}),
                                 sandbox=self.sandbox, agent_name="chat")
+        if name == "opencode.run":
+            if not self.opencode.installed:
+                gap = needs.record("connector", "OpenCode", category="coding",
+                                   reason="Chat tried to hand work to OpenCode",
+                                   source="agent")
+                return {"ok": False, "error": "OpenCode is not installed here.",
+                        "report_id": gap.get("id")}
+            return self.opencode.run(args.get("prompt", ""),
+                                     directory=args.get("directory", ""),
+                                     model=args.get("model", ""),
+                                     session=args.get("session", ""))
         # Anything else is a tool the model wanted and we do not have.
         gap = needs.missing_tool(name, agent_name="chat",
                                  detail=f"Model requested it with args: {sorted(args)}")
@@ -362,14 +380,43 @@ def agents_list(_app, _m, _q, _b) -> dict:
 def agents_create(_app, _m, _q, body) -> dict:
     if not (body.get("name") or "").strip():
         return {"ok": False, "error": "name required"}
+    bad = _bad_schedule(body.get("schedule", ""))
+    if bad:
+        return bad
     return {"ok": True, "agent": agents.create(
         body["name"], body.get("role", ""), body.get("prompt", ""),
         body.get("connectors", []), body.get("schedule", ""))}
 
 
+def _bad_schedule(text: str) -> dict | None:
+    """Reject a schedule we cannot honour, rather than storing one that will
+    never fire. A silently ignored setting is worse than a rejected one."""
+    try:
+        sched.parse(text)
+    except sched.BadSchedule as e:
+        return {"ok": False, "error": str(e), "field": "schedule"}
+    return None
+
+
 @route("PATCH", "/api/agents/<aid>")
 def agents_update(_app, m, _q, body) -> dict:
+    if "schedule" in body:
+        bad = _bad_schedule(body.get("schedule", ""))
+        if bad:
+            return bad
     return {"ok": True, "agent": agents.update(m["aid"], **body)}
+
+
+@route("GET", "/api/schedule")
+def schedule_get(app: App, _m, _q, _b) -> dict:
+    return {"ok": True, "running": app.scheduler.running, **sched.status(app)}
+
+
+@route("POST", "/api/schedule/tick")
+def schedule_tick(app: App, _m, _q, _b) -> dict:
+    """Fire anything due right now - used by the UI's 'run due now' button
+    and by tests, so scheduling can be verified without waiting for a clock."""
+    return {"ok": True, "fired": app.scheduler.tick()}
 
 
 @route("DELETE", "/api/agents/<aid>")
@@ -446,10 +493,69 @@ def slack_send(app: App, _m, _q, body) -> dict:
 
 # -- connectors ----------------------------------------------------------------
 
+@route("GET", "/api/opencode")
+def opencode_status(app: App, _m, _q, _b) -> dict:
+    return {"ok": True, **app.opencode.status()}
+
+
+@route("GET", "/api/opencode/models")
+def opencode_models(app: App, _m, _q, _b) -> dict:
+    return {"ok": True, "models": app.opencode.models()}
+
+
+@route("GET", "/api/opencode/sessions")
+def opencode_sessions(app: App, _m, _q, _b) -> dict:
+    return {"ok": True, "sessions": app.opencode.sessions()}
+
+
+@route("POST", "/api/opencode/run")
+def opencode_run(app: App, _m, _q, body) -> dict:
+    """Hand a task to the coding agent. Blocking - the UI shows a spinner."""
+    return app.opencode.run(
+        body.get("prompt", ""), directory=body.get("directory", ""),
+        model=body.get("model", ""), session=body.get("session", ""),
+        agent=body.get("agent", ""), timeout=body.get("timeout"))
+
+
+@route("POST", "/api/opencode/queue")
+def opencode_queue(app: App, _m, _q, body) -> dict:
+    """Same job, run in the background so the caller is not held open.
+
+    Deliberately NOT dispatched to Hermes: that daemon is a separate process
+    with no OpenCode client, so a task handed to it would sit in the queue as
+    an unexecuted note. The result lands in the activity log instead.
+    """
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        return {"ok": False, "error": "prompt required"}
+    if not app.opencode.installed:
+        return {"ok": False, "error": "OpenCode is not installed here."}
+
+    directory = body.get("directory", "")
+    model = body.get("model", "")
+
+    def work():
+        store.log_event("opencode", f"Started: {prompt[:90]}")
+        res = app.opencode.run(prompt, directory=directory, model=model)
+        store.log_event(
+            "opencode",
+            (f"Finished in {res.get('duration')}s: {prompt[:70]}"
+             if res.get("ok") else
+             f"Failed: {res.get('error', 'unknown error')[:160]}"),
+            level="info" if res.get("ok") else "error",
+            meta={"output": (res.get("output") or "")[:4000]},
+        )
+
+    threading.Thread(target=work, daemon=True, name="opencode-job").start()
+    return {"ok": True, "queued": True,
+            "note": "Running in the background - watch System > Activity."}
+
+
 @route("GET", "/api/connectors")
 def connectors_list(app: App, _m, _q, _b) -> dict:
     return {"ok": True,
-            "catalog": registry.catalog(app.cfg, app.supervisor, app.slack, app.chat),
+            "catalog": registry.catalog(app.cfg, app.supervisor, app.slack, app.chat,
+                                        app.opencode),
             "custom": registry.list_connectors()}
 
 

@@ -49,6 +49,8 @@ CATALOG = [
      "description": "Isolated command execution and file workspace", "builtin": True},
     {"id": "chat", "name": "AI Model", "category": "core",
      "description": "Ollama, Anthropic or OpenAI chat model", "builtin": True},
+    {"id": "opencode", "name": "OpenCode", "category": "coding",
+     "description": "Hand real coding work to the agent on this machine", "builtin": True},
     {"id": "slack", "name": "Slack", "category": "messaging",
      "description": "Read channels and post messages", "builtin": True},
     {"id": "notion", "name": "Notion", "category": "knowledge",
@@ -84,13 +86,17 @@ def _row(r) -> dict:
 
 # -- catalog ------------------------------------------------------------------
 
-def catalog(cfg: dict, supervisor=None, slack=None, chat=None) -> list[dict]:
+def catalog(cfg: dict, supervisor=None, slack=None, chat=None,
+            opencode=None) -> list[dict]:
     """Built-in connectors with live configured/health state."""
     out = []
     for item in CATALOG:
         entry = dict(item)
         cid = entry["id"]
-        if cid == "slack":
+        if cid == "opencode":
+            entry["configured"] = bool(opencode and opencode.installed)
+            entry["healthy"] = bool(opencode and opencode.installed and opencode.pty_supported)
+        elif cid == "slack":
             entry["configured"] = bool(cfg.get("slack", {}).get("bot_token"))
             entry["healthy"] = bool(slack and slack.configured)
         elif cid == "notion":

@@ -56,6 +56,19 @@ DEFAULTS: dict = {
         ),
         "max_history": 30,
     },
+    "opencode": {
+        # OpenCode is the coding agent JARVIS hands real work to. Left mostly
+        # empty so it uses whatever the machine already has configured.
+        "binary": "",
+        "model": "",
+        "agent": "",
+        "directory": "",
+        "server_url": "http://127.0.0.1:4096",
+        # --auto lets OpenCode approve its own shell commands and file writes.
+        # Off unless the customer deliberately turns it on.
+        "auto_approve": False,
+        "timeout": 900,
+    },
     "slack": {
         "enabled": False,
         "bot_token": "",          # xoxb-...
