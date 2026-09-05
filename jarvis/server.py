@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
 import threading
 import time
@@ -890,11 +891,17 @@ class Handler(JsonHandler):
 
 
 class JarvisHTTPServer(ThreadingHTTPServer):
-    # Windows honours SO_REUSEADDR by letting a SECOND process bind a port that
-    # is already in use, silently splitting traffic between two instances. A
-    # desktop app gets launched twice all the time, so refuse the second bind
-    # and let the caller surface the one that is already running.
-    allow_reuse_address = False
+    # SO_REUSEADDR means opposite things on the two platforms, so this has to
+    # be decided per platform rather than picked once:
+    #
+    #   Windows  a SECOND process may bind a port already in use, silently
+    #            splitting traffic between two instances. A desktop app gets
+    #            launched twice constantly, so refuse it.
+    #   POSIX    it only permits rebinding a socket in TIME_WAIT; it cannot
+    #            steal a live one. Refusing it means a service restart fails
+    #            with EADDRINUSE until TIME_WAIT expires - which is exactly
+    #            what broke `systemctl restart` on the Ubuntu box.
+    allow_reuse_address = (os.name == "posix")
 
 
 def already_running(port: int, host: str = "127.0.0.1") -> bool:
