@@ -183,6 +183,25 @@ logs/                 per-service output
 Environment overrides: `CROSSPCAI_HOME`, `JARVIS_PORT`, `JARVIS_BIND`,
 `CROSSPCAI_HOST`, `SLACK_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`.
 
+### Connectors
+
+Connectors are browsable in the app under **Connectors**, grouped by category
+with a filter box. Every entry declares an honest status, because a catalogue
+that implies everything works equally is worse than a short one:
+
+| Status | Meaning |
+|---|---|
+| **built in** | JARVIS speaks it directly, with code behind it |
+| **ready to wire** | No bespoke code, but it is a plain HTTP API the generic connector reaches. **Add** pre-fills base URL, auth style and a test path, so one click plus your credential gives a working connector |
+| **not yet** | Not reachable — usually OAuth, SigV4 signing or a database driver. **Request it** files it in Reports |
+
+48 entries across 9 categories: core, AI and coding, messaging, knowledge,
+development, business, automation, data and infrastructure — Slack, Notion,
+GitHub, GitLab, Jira, Linear, Sentry, Stripe, HubSpot, Intercom, Shopify,
+Discord, Telegram, Supabase, Airtable, Docker, TrueNAS, Proxmox, Cloudflare,
+Home Assistant and more. Anything missing can be built by hand as a custom HTTP
+connector, or requested.
+
 ### Models
 Ollama is the default and needs no key — it runs on the machine and nothing
 leaves it. Anthropic and OpenAI work with a key entered in setup or Settings.

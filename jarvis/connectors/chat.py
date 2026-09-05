@@ -118,6 +118,62 @@ def strip_tool_call(text: str) -> str:
     return out.strip()
 
 
+# Model options offered in Settings. Ollama's list is read live from the
+# machine; the hosted providers are listed here so the dropdown works before a
+# key is entered. A customer can always type a model id we have not listed.
+KNOWN_MODELS = {
+    "anthropic": [
+        ("claude-opus-5", "Claude Opus 5 - most capable"),
+        ("claude-sonnet-5", "Claude Sonnet 5 - balanced"),
+        ("claude-haiku-4-5", "Claude Haiku 4.5 - fastest, cheapest"),
+        ("claude-fable-5-1", "Claude Fable 5.1"),
+    ],
+    "openai": [
+        ("gpt-4o", "GPT-4o"),
+        ("gpt-4o-mini", "GPT-4o mini - cheapest"),
+        ("o4-mini", "o4-mini - reasoning"),
+    ],
+    "ollama": [
+        ("llama3.2:latest", "Llama 3.2 - small, general"),
+        ("gemma4:latest", "Gemma 4"),
+        ("qwen2.5-coder:latest", "Qwen 2.5 Coder - code"),
+    ],
+}
+
+PROVIDERS = [
+    {"id": "anthropic", "name": "Anthropic (Claude)", "needs_key": True,
+     "keys_url": "https://console.anthropic.com/settings/keys",
+     "note": "Strongest results for agents and tool use."},
+    {"id": "ollama", "name": "Ollama (local)", "needs_key": False,
+     "keys_url": "https://ollama.com/download",
+     "note": "Runs on this machine. No key, and nothing leaves the box."},
+    {"id": "openai", "name": "OpenAI", "needs_key": True,
+     "keys_url": "https://platform.openai.com/api-keys",
+     "note": "GPT models."},
+]
+
+
+def provider_options(cfg: dict | None = None) -> list[dict]:
+    """Every provider with its models and whether a key is already set."""
+    cfg = cfg or {}
+    out = []
+    for prov in PROVIDERS:
+        pid = prov["id"]
+        entry = dict(prov)
+        entry["configured"] = (
+            True if pid == "ollama" else bool(cfg.get(f"{pid}_key")))
+        models = [{"id": m, "label": lbl} for m, lbl in KNOWN_MODELS.get(pid, [])]
+        if pid == "ollama":
+            # Prefer what is actually pulled on this machine over the guesses.
+            live = ChatProvider({**cfg, "provider": "ollama"}).available_models()
+            if live:
+                models = [{"id": m, "label": m} for m in live]
+        entry["models"] = models
+        entry["selected"] = (cfg.get("provider") == pid)
+        out.append(entry)
+    return out
+
+
 class ChatProvider:
     """One object per configured provider; complete() is the only entry point."""
 

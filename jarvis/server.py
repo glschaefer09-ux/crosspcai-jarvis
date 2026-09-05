@@ -26,7 +26,7 @@ from pathlib import Path
 
 from . import (agents, config, installer, license, mobile, needs, nodes,
                scheduler as sched, store, telemetry, tools)
-from .connectors import registry
+from .connectors import catalog as cat, registry
 from .connectors.chat import ChatProvider, strip_tool_call
 from .connectors.hermes import Hermes
 from .connectors.opencode import OpenCode
@@ -550,6 +550,67 @@ def opencode_queue(app: App, _m, _q, body) -> dict:
     threading.Thread(target=work, daemon=True, name="opencode-job").start()
     return {"ok": True, "queued": True,
             "note": "Running in the background - watch System > Activity."}
+
+
+@route("GET", "/api/catalog")
+def catalog_all(app: App, _m, _q, _b) -> dict:
+    """Every connector JARVIS offers, grouped, with live state for the natives."""
+    natives = {c["id"]: {"configured": c.get("configured", False),
+                         "healthy": c.get("healthy", False)}
+               for c in registry.catalog(app.cfg, app.supervisor, app.slack,
+                                         app.chat, app.opencode)}
+    # The AI providers are natives too, but their state lives in chat config.
+    chat_cfg = app.cfg.get("chat", {})
+    for pid in ("anthropic", "openai"):
+        natives[pid] = {"configured": bool(chat_cfg.get(f"{pid}_key")),
+                        "healthy": chat_cfg.get("provider") == pid and app.chat.ready()}
+    natives["ollama"] = {"configured": True,
+                         "healthy": ChatProvider({**chat_cfg,
+                                                  "provider": "ollama"}).ready()}
+    natives["opencode"] = {"configured": app.opencode.installed,
+                           "healthy": app.opencode.installed and app.opencode.pty_supported}
+    return {"ok": True, "groups": cat.grouped(natives), "counts": cat.counts(),
+            "installed": [c["name"] for c in registry.list_connectors()]}
+
+
+@route("POST", "/api/catalog/<cid>/add")
+def catalog_add(_app, m, _q, body) -> dict:
+    """Turn a template entry into a working connector in one click.
+
+    The customer still supplies the secret; everything else - base URL, auth
+    style, test path - comes from the catalog so there is nothing to look up.
+    """
+    pre = cat.prefill(m["cid"])
+    if not pre:
+        entry = cat.BY_ID.get(m["cid"])
+        if entry and entry["status"] == "planned":
+            return {"ok": False, "planned": True,
+                    "error": f"{entry['name']} is not reachable yet. "
+                             "Use Request to have it built.",
+                    "note": entry.get("note", "")}
+        return {"ok": False, "error": "unknown connector"}
+    pre["base_url"] = body.get("base_url") or pre["base_url"]
+    pre["auth_value"] = body.get("auth_value", "")
+    return {"ok": True, "connector": registry.create(**pre)}
+
+
+@route("POST", "/api/catalog/<cid>/request")
+def catalog_request(_app, m, _q, body) -> dict:
+    """Ask CrossPCAI to build one. Recorded locally; sending stays separate."""
+    entry = cat.BY_ID.get(m["cid"])
+    if not entry:
+        return needs.record("connector", body.get("name", ""), source="user")
+    return needs.record("connector", entry["name"], category=entry["category"],
+                        reason=body.get("reason", "") or entry["description"],
+                        detail=entry.get("note", ""), source="user")
+
+
+@route("GET", "/api/providers")
+def providers_get(app: App, _m, _q, _b) -> dict:
+    """AI providers and their models, for the Settings dropdowns."""
+    from .connectors.chat import provider_options
+    return {"ok": True, "providers": provider_options(app.cfg.get("chat", {})),
+            "current": app.chat.describe()}
 
 
 @route("GET", "/api/connectors")

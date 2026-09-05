@@ -522,48 +522,168 @@ function connectSlack() {
 /* ── Connectors ───────────────────────────────────────────────────────── */
 
 async function loadConnectors() {
-  const { catalog, custom } = await api('/api/connectors');
-  const cat = $('#conn-catalog');
-  cat.innerHTML = '';
-  for (const c of catalog) {
-    cat.append(el('div', { class: 'card hover' },
-      el('div', { class: 'row-between' }, el('h3', {}, c.name),
-        el('span', { class: 'tag ' + (c.healthy ? 'green' : c.configured ? 'yellow' : 'grey') },
-          c.healthy ? 'connected' : c.configured ? 'configured' : 'not set up')),
-      el('div', { class: 'meta' }, c.description),
-      c.id === 'slack' && !c.configured
-        ? el('div', { class: 'actions' },
-            el('button', { class: 'btn sm primary', onclick: connectSlack }, 'Connect'))
-        : null));
+  const [cat, mine] = await Promise.all([
+    api('/api/catalog'),
+    api('/api/connectors'),
+  ]);
+
+  const box = $('#conn-catalog');
+  box.innerHTML = '';
+
+  // A one-line honest summary beats a wall of logos.
+  const c = cat.counts;
+  box.append(el('div', { class: 'meta', style: 'margin-bottom:16px' },
+    `${c.total} connectors · ${c.native} built in · ${c.template} ready to wire `
+    + `· ${c.planned} not available yet`));
+
+  const filter = el('input', {
+    type: 'text', placeholder: 'Filter connectors…',
+    style: 'margin-bottom:20px; max-width:340px',
+  });
+  filter.oninput = () => {
+    const q = filter.value.trim().toLowerCase();
+    $$('.cat-card', box).forEach((n) => {
+      n.hidden = !!q && !n.dataset.search.includes(q);
+    });
+    $$('.cat-group', box).forEach((g) => {
+      g.hidden = !$$('.cat-card', g).some((n) => !n.hidden);
+    });
+  };
+  box.append(filter);
+
+  for (const group of cat.groups) {
+    const grid = el('div', { class: 'grid' });
+    const section = el('div', { class: 'cat-group', style: 'margin-bottom:26px' },
+      el('div', { style: 'margin-bottom:10px' },
+        el('h3', { style: 'font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)' },
+          group.label),
+        el('div', { class: 'meta' }, group.description)),
+      grid);
+
+    for (const item of group.connectors) {
+      grid.append(connectorCard(item));
+    }
+    box.append(section);
   }
 
-  const box = $('#conn-custom');
-  box.innerHTML = '';
-  if (!custom.length) {
-    box.append(el('div', { class: 'empty' },
-      'Nothing yet. Add one to reach any HTTP API, or request one from us.'));
-    return;
+  // Connectors this customer actually wired up.
+  const custom = $('#conn-custom');
+  custom.innerHTML = '';
+  if (!mine.custom.length) {
+    custom.append(el('div', { class: 'empty' },
+      'Nothing wired yet. Add one above, or build a custom one.'));
   }
-  for (const c of custom) {
-    box.append(el('div', { class: 'card hover' },
-      el('div', { class: 'row-between' }, el('h3', {}, c.name),
-        el('span', { class: 'tag ' + (c.enabled ? '' : 'grey') }, c.kind)),
-      el('div', { class: 'meta mono' }, c.base_url || '—'),
+  for (const c2 of mine.custom) {
+    custom.append(el('div', { class: 'card hover' },
+      el('div', { class: 'row-between' }, el('h3', {}, c2.name),
+        el('span', { class: 'tag ' + (c2.enabled ? '' : 'grey') }, c2.kind)),
+      el('div', { class: 'meta mono' }, c2.base_url || '—'),
       el('div', { class: 'actions' },
         el('button', {
           class: 'btn sm', onclick: async () => {
-            const r = await api(`/api/connectors/${c.id}/test`, { method: 'POST' });
+            const r = await api(`/api/connectors/${c2.id}/test`, { method: 'POST' });
             toast(r.ok ? 'Connector works' : 'Test failed',
                   r.ok ? '' : (r.error || ''), r.ok ? 'ok' : 'err');
           },
         }, 'Test'),
-        el('button', { class: 'btn sm', onclick: () => editConnector(c) }, 'Edit'),
+        el('button', { class: 'btn sm', onclick: () => editConnector(c2) }, 'Edit'),
         el('button', {
           class: 'btn sm danger', onclick: async () => {
-            await api(`/api/connectors/${c.id}`, { method: 'DELETE' }); loadConnectors();
+            await api(`/api/connectors/${c2.id}`, { method: 'DELETE' });
+            loadConnectors();
           },
         }, 'Delete'))));
   }
+}
+
+const STATUS_TAG = {
+  native: ['green', 'built in'],
+  template: ['', 'ready to wire'],
+  planned: ['grey', 'not yet'],
+};
+
+function connectorCard(item) {
+  const [cls, label] = STATUS_TAG[item.status] || ['grey', item.status];
+  const card = el('div', {
+    class: 'card hover cat-card',
+    'data-search': `${item.name} ${item.description} ${item.category}`.toLowerCase(),
+  },
+    el('div', { class: 'row-between' },
+      el('h3', {}, item.name),
+      el('span', { class: 'tag ' + (item.healthy ? 'green' : cls) },
+        item.healthy ? 'connected' : label)),
+    el('div', { class: 'meta' }, item.description));
+
+  if (item.note) card.append(el('div', { class: 'meta', style: 'margin-top:6px' }, item.note));
+  if (item.auth && item.auth.type !== 'none') {
+    card.append(el('div', { class: 'meta', style: 'margin-top:6px' },
+      `Needs: ${item.auth.label}`));
+  }
+
+  const actions = el('div', { class: 'actions' });
+  if (item.status === 'template') {
+    actions.append(el('button', {
+      class: 'btn sm primary', onclick: () => addFromCatalog(item),
+    }, 'Add'));
+  } else if (item.status === 'planned') {
+    actions.append(el('button', {
+      class: 'btn sm', onclick: () => requestFromCatalog(item),
+    }, 'Request it'));
+  } else if (item.id === 'slack' && !item.configured) {
+    actions.append(el('button', { class: 'btn sm primary', onclick: connectSlack }, 'Connect'));
+  } else if (['anthropic', 'openai', 'ollama'].includes(item.id)) {
+    actions.append(el('button', {
+      class: 'btn sm', onclick: () => go('settings'),
+    }, item.configured ? 'Settings' : 'Set up'));
+  }
+  if (item.docs) {
+    actions.append(el('a', {
+      class: 'btn sm', href: item.docs, target: '_blank', rel: 'noopener noreferrer',
+    }, 'Docs'));
+  }
+  if (actions.children.length) card.append(actions);
+  return card;
+}
+
+function addFromCatalog(item) {
+  modal({
+    title: `Add ${item.name}`,
+    sub: 'The address and auth style are filled in. You supply the credential.',
+    fields: [
+      { name: 'base_url', label: 'Base URL', value: item.base_url,
+        hint: item.base_url.includes('your-')
+          ? 'Replace the placeholder with your own address.' : '' },
+      { name: 'auth_value', type: 'password',
+        label: item.auth.label,
+        hint: item.note || 'Stored on this machine only. Never included in reports.' },
+    ],
+    okLabel: 'Add connector',
+    onOk: async (v) => {
+      const r = await api(`/api/catalog/${item.id}/add`, { method: 'POST', body: v });
+      if (!r.ok) { toast('Could not add it', r.error || '', 'err'); return false; }
+      toast(`${item.name} added`, 'Use Test to check the credential.', 'ok');
+      loadConnectors();
+    },
+  });
+}
+
+function requestFromCatalog(item) {
+  modal({
+    title: `Request ${item.name}`,
+    sub: 'Saved on this machine. Nothing is sent until you press Send report.',
+    fields: [
+      { name: 'reason', type: 'textarea', label: 'What would you use it for?',
+        placeholder: item.description },
+    ],
+    okLabel: 'Save request',
+    onOk: async (v) => {
+      const r = await api(`/api/catalog/${item.id}/request`, { method: 'POST', body: v });
+      toast('Saved', r.note || '', 'ok', [
+        { label: 'Send report now', primary: true, fn: () => sendReport(r.id) },
+      ]);
+      refreshBadges();
+    },
+  });
 }
 
 function editConnector(c) {
@@ -902,27 +1022,88 @@ async function loadSettings() {
       el('button', { class: 'btn primary', onclick: activateLicense },
         lic.activated ? 'Change key' : 'Activate'))));
 
-  // Model
-  body.append(section('AI model', 'Where JARVIS thinks. Ollama runs on this machine and needs no key.', [
-    field('Provider', selectEl('set_provider', cfg.chat.provider, [
-      { value: 'ollama', label: 'Ollama (local)' },
-      { value: 'anthropic', label: 'Anthropic' },
-      { value: 'openai', label: 'OpenAI' },
-    ])),
-    field('Model', inputEl('set_model', cfg.chat.ollama_model || cfg.chat.anthropic_model)),
-    field('API key (cloud providers)', inputEl('set_key', '', 'password',
-      cfg.chat.anthropic_key || cfg.chat.openai_key ? 'unchanged' : '')),
-  ], async () => {
-    const provider = $('#set_provider').value;
-    const model = $('#set_model').value;
-    const key = $('#set_key').value;
-    const chat = { provider };
-    if (provider === 'ollama') chat.ollama_model = model;
-    if (provider === 'anthropic') { chat.anthropic_model = model; if (key) chat.anthropic_key = key; }
-    if (provider === 'openai') { chat.openai_model = model; if (key) chat.openai_key = key; }
-    await api('/api/settings', { method: 'POST', body: { chat } });
-    toast('Saved', '', 'ok'); refreshStatus();
-  }));
+  // Model — driven by /api/providers so the model list is real, not hardcoded.
+  const provs = await api('/api/providers');
+  const provSel = el('select', { id: 'set_provider' });
+  const modelSel = el('select', { id: 'set_model' });
+  const modelFree = el('input', {
+    id: 'set_model_free', type: 'text', placeholder: 'or type a model id',
+    style: 'margin-top:6px',
+  });
+  const keyInput = el('input', {
+    id: 'set_key', type: 'password',
+    placeholder: 'paste key to change it',
+  });
+  const provNote = el('div', { class: 'hint' });
+
+  const paintProvider = () => {
+    const p = provs.providers.find((x) => x.id === provSel.value);
+    modelSel.innerHTML = '';
+    for (const m of p.models) {
+      modelSel.append(el('option', { value: m.id }, m.label));
+    }
+    const current = { anthropic: cfg.chat.anthropic_model, openai: cfg.chat.openai_model,
+                      ollama: cfg.chat.ollama_model }[p.id];
+    if (current && p.models.some((m) => m.id === current)) modelSel.value = current;
+    keyInput.parentElement.hidden = !p.needs_key;
+    provNote.textContent = p.needs_key
+      ? `${p.note} ${p.configured ? 'A key is already saved.' : 'A key is required.'}`
+      : p.note;
+  };
+
+  for (const p of provs.providers) {
+    provSel.append(el('option', { value: p.id },
+      p.name + (p.configured ? '' : (p.needs_key ? ' — needs a key' : ''))));
+  }
+  provSel.value = cfg.chat.provider || 'ollama';
+  provSel.onchange = paintProvider;
+
+  const keyField = el('div', { class: 'field' },
+    el('label', {}, 'API key'), keyInput,
+    el('div', { class: 'hint' },
+      'Stored on this machine only. Never included in a report.'));
+
+  body.append(el('div', { class: 'card', style: 'margin-bottom:16px' },
+    el('h3', {}, 'AI model'),
+    el('div', { class: 'meta', style: 'margin:6px 0 14px' },
+      'Where JARVIS thinks. This model also drives your agents.'),
+    el('div', { class: 'field' }, el('label', {}, 'Provider'), provSel, provNote),
+    el('div', { class: 'field' }, el('label', {}, 'Model'), modelSel, modelFree),
+    keyField,
+    el('div', { class: 'actions' },
+      el('button', {
+        class: 'btn primary', onclick: async () => {
+          const provider = provSel.value;
+          const model = modelFree.value.trim() || modelSel.value;
+          const key = keyInput.value.trim();
+          const chat = { provider };
+          if (provider === 'ollama') chat.ollama_model = model;
+          if (provider === 'anthropic') {
+            chat.anthropic_model = model;
+            if (key) chat.anthropic_key = key;
+          }
+          if (provider === 'openai') {
+            chat.openai_model = model;
+            if (key) chat.openai_key = key;
+          }
+          await api('/api/settings', { method: 'POST', body: { chat } });
+          toast('Saved', `${provider} · ${model}`, 'ok');
+          refreshStatus();
+          loadSettings();
+        },
+      }, 'Save'),
+      el('button', {
+        class: 'btn', onclick: async () => {
+          const r = await api('/api/setup/test', {
+            method: 'POST',
+            body: { what: 'chat', chat: { provider: provSel.value } },
+          });
+          toast(r.ok ? 'Provider reachable' : 'Not reachable',
+                r.ok ? '' : 'Check the key, or that Ollama is running.',
+                r.ok ? 'ok' : 'err');
+        },
+      }, 'Test'))));
+  paintProvider();
 
   // Privacy — the consent surface for everything telemetry does.
   const optin = el('input', { type: 'checkbox', id: 'set_tel' });
