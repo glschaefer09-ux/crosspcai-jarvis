@@ -50,8 +50,8 @@ class OpenCode:
         self.binary = cfg.get("binary") or shutil.which("opencode") or "opencode"
         self.model = cfg.get("model", "")
         self.agent = cfg.get("agent", "")
-        self.directory = cfg.get("directory", str(Path.home()))
-        self.server_url = cfg.get("server_url", "http://127.0.0.1:4096")
+        self.directory = cfg.get("directory") or str(Path.home())
+        self.server_url = cfg.get("server_url") or "http://127.0.0.1:4096"
         # Off by design: --auto lets the coding agent approve its own shell
         # commands and file writes with nobody watching.
         self.auto_approve = bool(cfg.get("auto_approve", False))

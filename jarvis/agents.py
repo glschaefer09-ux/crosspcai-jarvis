@@ -100,8 +100,12 @@ def _init() -> None:
     c = store.connect()
     c.executescript(SCHEMA)
     c.commit()
-    if not c.execute("SELECT 1 FROM agents LIMIT 1").fetchone():
-        for aid, name, role, prompt in BUILTIN:
+    # Seed each built-in independently. Checking "is the table empty" instead
+    # would mean a version that ships a new built-in agent never delivers it to
+    # anyone who already had JARVIS installed.
+    existing = {r["id"] for r in c.execute("SELECT id FROM agents").fetchall()}
+    for aid, name, role, prompt in BUILTIN:
+        if aid not in existing:
             create(name, role, prompt, builtin=True, agent_id=aid, notify=False)
 
 
