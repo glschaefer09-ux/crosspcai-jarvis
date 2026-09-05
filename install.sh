@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# JARVIS installer — Linux and macOS.
+# JARVAS installer — Linux and macOS.
 #
 #   sudo ./install.sh              install, put one icon in the launcher
 #   sudo ./install.sh --server     also enable the background service
 #   sudo ./install.sh --uninstall  remove it
 #
-# Works from a built binary (dist/JARVIS) or straight from source.
+# Works from a built binary (dist/JARVAS) or straight from source.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="/opt/jarvis"
-BIN="/usr/local/bin/jarvis"
+PREFIX="/opt/jarvas"
+BIN="/usr/local/bin/jarvas"
 OS="$(uname -s)"
 MODE="desktop"
 
@@ -31,20 +31,20 @@ die() { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
 # ── uninstall ────────────────────────────────────────────────────────────────
 if [ "$MODE" = "uninstall" ]; then
   say "Stopping services"
-  systemctl --user stop crosspcai-jarvis 2>/dev/null || true
-  systemctl --user disable crosspcai-jarvis 2>/dev/null || true
+  systemctl --user stop crosspcai-jarvas 2>/dev/null || true
+  systemctl --user disable crosspcai-jarvas 2>/dev/null || true
   rm -rf "$PREFIX" "$BIN"
-  rm -f /usr/share/applications/jarvis.desktop
-  rm -f /usr/share/icons/hicolor/512x512/apps/jarvis.png
+  rm -f /usr/share/applications/jarvas.desktop
+  rm -f /usr/share/icons/hicolor/512x512/apps/jarvas.png
   command -v update-desktop-database >/dev/null && update-desktop-database || true
-  say "JARVIS removed. Your data in ~/.crosspcai was left alone."
+  say "JARVAS removed. Your data in ~/.crosspcai was left alone."
   exit 0
 fi
 
 # ── locate what to install ───────────────────────────────────────────────────
-if [ -d "$ROOT/dist/JARVIS" ]; then
-  SOURCE="$ROOT/dist/JARVIS"; KIND="binary"
-elif [ -d "$ROOT/jarvis" ]; then
+if [ -d "$ROOT/dist/JARVAS" ]; then
+  SOURCE="$ROOT/dist/JARVAS"; KIND="binary"
+elif [ -d "$ROOT/jarvas" ]; then
   SOURCE="$ROOT"; KIND="source"
   command -v python3 >/dev/null || die "python3 is required for a source install"
   PYV=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')
@@ -59,43 +59,43 @@ rm -rf "$PREFIX"; mkdir -p "$PREFIX"
 
 if [ "$KIND" = "binary" ]; then
   cp -R "$SOURCE"/. "$PREFIX"/
-  chmod +x "$PREFIX/jarvis"
-  LAUNCH="$PREFIX/jarvis"
+  chmod +x "$PREFIX/jarvas"
+  LAUNCH="$PREFIX/jarvas"
 else
-  cp -R "$SOURCE/jarvis" "$PREFIX/"
-  cat > "$PREFIX/jarvis" <<EOF
+  cp -R "$SOURCE/jarvas" "$PREFIX/"
+  cat > "$PREFIX/jarvas" <<EOF
 #!/bin/sh
-exec python3 -m jarvis "\$@"
+exec python3 -m jarvas "\$@"
 EOF
-  chmod +x "$PREFIX/jarvis"
+  chmod +x "$PREFIX/jarvas"
   # Source installs get the desktop extras; they are optional everywhere else.
   python3 -m pip install --quiet --upgrade pywebview pystray pillow 2>/dev/null \
     || say "note: install pywebview/pystray for a native window (browser used otherwise)"
-  LAUNCH="$PREFIX/jarvis"
+  LAUNCH="$PREFIX/jarvas"
 fi
 
 ln -sf "$LAUNCH" "$BIN"
-say "Installed to $PREFIX (command: jarvis)"
+say "Installed to $PREFIX (command: jarvas)"
 
 # ── one app icon ─────────────────────────────────────────────────────────────
 if [ "$OS" = "Linux" ]; then
-  install -Dm644 "$PREFIX/jarvis/assets/icon.png" \
-    /usr/share/icons/hicolor/512x512/apps/jarvis.png 2>/dev/null || \
-  install -Dm644 "$ROOT/jarvis/assets/icon.png" \
-    /usr/share/icons/hicolor/512x512/apps/jarvis.png
-  sed "s|^Exec=.*|Exec=$LAUNCH|" "$ROOT/packaging/jarvis.desktop" \
-    > /usr/share/applications/jarvis.desktop
-  chmod 644 /usr/share/applications/jarvis.desktop
+  install -Dm644 "$PREFIX/jarvas/assets/icon.png" \
+    /usr/share/icons/hicolor/512x512/apps/jarvas.png 2>/dev/null || \
+  install -Dm644 "$ROOT/jarvas/assets/icon.png" \
+    /usr/share/icons/hicolor/512x512/apps/jarvas.png
+  sed "s|^Exec=.*|Exec=$LAUNCH|" "$ROOT/packaging/jarvas.desktop" \
+    > /usr/share/applications/jarvas.desktop
+  chmod 644 /usr/share/applications/jarvas.desktop
   command -v update-desktop-database >/dev/null && update-desktop-database || true
   command -v gtk-update-icon-cache >/dev/null && \
     gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
-  say "Added JARVIS to your applications menu"
+  say "Added JARVAS to your applications menu"
 
   # Start at login for the person who ran sudo, not for root. The binary owns
-  # this logic (jarvis/installer.py) so there is one implementation of it.
+  # this logic (jarvas/installer.py) so there is one implementation of it.
   if [ "$MODE" = "desktop" ] && [ -n "${SUDO_USER:-}" ]; then
     su - "$SUDO_USER" -c "'$LAUNCH' --autostart on" >/dev/null 2>&1 \
-      && say "JARVIS will start when $SUDO_USER signs in" \
+      && say "JARVAS will start when $SUDO_USER signs in" \
       || say "note: turn on start-at-login from Settings when you first open it"
   fi
 fi
@@ -106,22 +106,22 @@ if [ "$MODE" = "server" ] && [ "$OS" = "Linux" ]; then
   UNIT_DIR="$(getent passwd "$REAL_USER" | cut -d: -f6)/.config/systemd/user"
   mkdir -p "$UNIT_DIR"
   sed "s|^ExecStart=.*|ExecStart=$LAUNCH --server --bind 0.0.0.0|" \
-    "$ROOT/packaging/crosspcai-jarvis.service" > "$UNIT_DIR/crosspcai-jarvis.service"
+    "$ROOT/packaging/crosspcai-jarvas.service" > "$UNIT_DIR/crosspcai-jarvas.service"
   chown -R "$REAL_USER": "$UNIT_DIR"
   loginctl enable-linger "$REAL_USER" 2>/dev/null || true
   su - "$REAL_USER" -c "systemctl --user daemon-reload && \
-    systemctl --user enable --now crosspcai-jarvis" || \
-    say "enable it yourself: systemctl --user enable --now crosspcai-jarvis"
+    systemctl --user enable --now crosspcai-jarvas" || \
+    say "enable it yourself: systemctl --user enable --now crosspcai-jarvas"
   say "Service running — reachable on port 5580"
 fi
 
 cat <<EOF
 
-  JARVIS is installed.
+  JARVAS is installed.
 
-    Open it        click the JARVIS icon, or run: jarvis
-    Server mode    jarvis --server
-    Health check   jarvis --status
+    Open it        click the JARVAS icon, or run: jarvas
+    Server mode    jarvas --server
+    Health check   jarvas --status
 
   First launch walks you through setup. Nothing leaves your machine
   unless you switch reporting on and press Send.

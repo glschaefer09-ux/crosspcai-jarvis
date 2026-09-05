@@ -1,10 +1,10 @@
-# JARVIS — the CrossPCAI control centre
+# JARVAS — the CrossPCAI control centre
 
 One app. Chat, agents, a sandbox and Slack behind a single icon, on every
 machine you install it on.
 
 A customer downloads one file, launches one icon, answers four questions, and
-JARVIS sets itself up — including the background services it needs. There is
+JARVAS sets itself up — including the background services it needs. There is
 nothing else to install and no systemd unit to hand-write.
 
 ---
@@ -17,11 +17,11 @@ nothing else to install and no systemd unit to hand-write.
 | **Agents** | Create agents with a name, a standing brief and a schedule; three ship ready to use |
 | **Sandbox** | A jailed workspace with a terminal and file browser — commands never touch the real desktop |
 | **Slack** | Read channels and post, without leaving the app |
-| **Connectors** | What JARVIS can reach. Wire any HTTP API yourself, or ask for one |
+| **Connectors** | What JARVAS can reach. Wire any HTTP API yourself, or ask for one |
 | **Tools** | Named actions agents can call: HTTP, shell or prompt macros |
 | **Machines** | Pair every install and drive them all from one window |
 | **Reports** | Everything you needed and did not have — sent only if you send it |
-| **System** | Start, stop, restart and read the logs of the services JARVIS runs |
+| **System** | Start, stop, restart and read the logs of the services JARVAS runs |
 
 ---
 
@@ -31,26 +31,26 @@ nothing else to install and no systemd unit to hand-write.
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
-Puts `JARVIS.exe` in `%LOCALAPPDATA%\Programs\JARVIS` with a Desktop and Start
+Puts `JARVAS.exe` in `%LOCALAPPDATA%\Programs\JARVAS` with a Desktop and Start
 Menu icon. Add `-Startup` to launch it at sign-in.
 
 ### Linux / CrossPC AI OS
 ```bash
 sudo ./install.sh
 ```
-Installs to `/opt/jarvis`, adds `jarvis` to your PATH and one icon to the
+Installs to `/opt/jarvas`, adds `jarvas` to your PATH and one icon to the
 applications menu. Add `--server` to also enable the background service.
 
 A `.deb` is available too:
 ```bash
 python3 packaging/build.py --deb
-sudo apt install ./dist/jarvis_1.0.0_amd64.deb
+sudo apt install ./dist/jarvas_1.0.0_amd64.deb
 ```
 
 ### macOS
 ```bash
 python3 packaging/build.py
-cp -R dist/JARVIS.app /Applications/
+cp -R dist/JARVAS.app /Applications/
 ```
 
 ### TrueNAS SCALE / any Docker host
@@ -63,7 +63,7 @@ dataset so config and the sandbox survive an app update.
 ### From source (any platform)
 ```bash
 pip install pywebview pystray pillow   # optional: native window and tray
-python3 -m jarvis
+python3 -m jarvas
 ```
 
 ---
@@ -74,30 +74,30 @@ The shipped product is a single executable. Background daemons are not separate
 downloads — the supervisor re-launches the same binary with a flag:
 
 ```
-JARVIS.exe --server --port 5580     the app and its UI
-JARVIS.exe --service hermes         the task queue      (port 5562)
-JARVIS.exe --service sandbox        the workspace       (port 5561)
+JARVAS.exe --server --port 5580     the app and its UI
+JARVAS.exe --service hermes         the task queue      (port 5562)
+JARVAS.exe --service sandbox        the workspace       (port 5561)
 ```
 
 That is why there is one icon and one thing to update.
 
 **It attaches rather than clobbers.** If something already serves port 5562 —
-an existing `crosspcai-hermes.service`, say — JARVIS connects to it and reports
+an existing `crosspcai-hermes.service`, say — JARVAS connects to it and reports
 the service as `external` instead of starting a rival process on the same port.
 
 | Command | What it does |
 |---|---|
-| `jarvis` | Desktop app: native window plus tray icon |
-| `jarvis --server` | Headless; serves the UI over the network |
-| `jarvis --status` | One-shot health check for scripts and CI |
-| `jarvis --reset-setup` | Run the first-run wizard again |
-| `jarvis --no-supervise` | Do not start or manage background services |
+| `jarvas` | Desktop app: native window plus tray icon |
+| `jarvas --server` | Headless; serves the UI over the network |
+| `jarvas --status` | One-shot health check for scripts and CI |
+| `jarvas --reset-setup` | Run the first-run wizard again |
+| `jarvas --no-supervise` | Do not start or manage background services |
 
 ---
 
 ## One interface, every machine
 
-Install JARVIS on the Windows laptop, the Ubuntu box and the NAS. Pair them
+Install JARVAS on the Windows laptop, the Ubuntu box and the NAS. Pair them
 once — **Machines › Pair a machine**, or **Scan network** to find them — and the
 switcher in the title bar points the whole interface at whichever one you want.
 Every pane, including the sandbox terminal and the service controls, then
@@ -109,8 +109,8 @@ network does not hand the machine away.
 
 ### Phones and tablets
 
-Desktops are **nodes** — JARVIS dials into them. Phones are **devices** — they
-dial in to JARVIS. A handset cannot host Hermes or a sandbox and comes and goes
+Desktops are **nodes** — JARVAS dials into them. Phones are **devices** — they
+dial in to JARVAS. A handset cannot host Hermes or a sandbox and comes and goes
 from the network, so it registers itself instead of being dialled, and then
 long-polls for work. Nothing listens on the handset: no inbound port, no push
 dependency in the control path.
@@ -145,7 +145,7 @@ lost handset from Machines without rotating the token on every other machine.
 ## Reports: how customer needs reach the build queue
 
 When you ask for a connector or a tool that does not exist — or an agent
-reaches for one — JARVIS writes it down. **Nothing is transmitted by that.**
+reaches for one — JARVAS writes it down. **Nothing is transmitted by that.**
 Reports live on your machine until you press **Send report**.
 
 Sending is off entirely until you switch it on in setup or
@@ -173,14 +173,14 @@ Everything lives in `~/.crosspcai` (`%USERPROFILE%\.crosspcai` on Windows,
 
 ```
 agent_token           shared bearer token, reused by the whole CrossPCAI stack
-jarvis.json           settings written by the wizard and the Settings pane
-jarvis.db             chat sessions, agents, tools, connectors, reports
+jarvas.json           settings written by the wizard and the Settings pane
+jarvas.db             chat sessions, agents, tools, connectors, reports
 license.json          activation state
 sandbox/              the sandbox workspace
 logs/                 per-service output
 ```
 
-Environment overrides: `CROSSPCAI_HOME`, `JARVIS_PORT`, `JARVIS_BIND`,
+Environment overrides: `CROSSPCAI_HOME`, `JARVAS_PORT`, `JARVAS_BIND`,
 `CROSSPCAI_HOST`, `SLACK_BOT_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`.
 
 ### Connectors
@@ -191,7 +191,7 @@ that implies everything works equally is worse than a short one:
 
 | Status | Meaning |
 |---|---|
-| **built in** | JARVIS speaks it directly, with code behind it |
+| **built in** | JARVAS speaks it directly, with code behind it |
 | **ready to wire** | No bespoke code, but it is a plain HTTP API the generic connector reaches. **Add** pre-fills base URL, auth style and a test path, so one click plus your credential gives a working connector |
 | **not yet** | Not reachable — usually OAuth, SigV4 signing or a database driver. **Request it** files it in Reports |
 

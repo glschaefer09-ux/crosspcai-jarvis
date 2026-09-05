@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jarvis-crosspcai"
+name = "jarvas-crosspcai"
 version = "1.0.0"
-description = "JARVIS — the CrossPCAI control centre. One app, every machine."
+description = "JARVAS — the CrossPCAI control centre. One app, every machine."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Proprietary" }
@@ -21,14 +21,14 @@ desktop = ["pywebview>=5.0", "pystray>=0.19", "pillow>=10.0"]
 build = ["pyinstaller>=6.0", "pillow>=10.0"]
 
 [project.scripts]
-jarvis = "jarvis.__main__:main"
+jarvas = "jarvas.__main__:main"
 
 [project.gui-scripts]
 # Windows: launches without a console window behind it.
-jarvis-desktop = "jarvis.__main__:main"
+jarvas-desktop = "jarvas.__main__:main"
 
 [tool.setuptools]
-packages = ["jarvis", "jarvis.connectors", "jarvis.services"]
+packages = ["jarvas", "jarvas.connectors", "jarvas.services"]
 
 [tool.setuptools.package-data]
-jarvis = ["ui/*", "assets/*"]
+jarvas = ["ui/*", "assets/*"]

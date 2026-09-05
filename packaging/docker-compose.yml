@@ -1,25 +1,25 @@
-# JARVIS server role — TrueNAS SCALE, CrossPC AI OS, or any Docker host.
+# JARVAS server role — TrueNAS SCALE, CrossPC AI OS, or any Docker host.
 #   docker compose -f packaging/docker-compose.yml up -d
 # Then open http://<host>:5580 and pair it from any desktop install.
 
 services:
-  jarvis:
+  jarvas:
     build:
       context: ..
       dockerfile: packaging/Dockerfile
-    image: crosspcai/jarvis:1.0.0
-    container_name: jarvis
+    image: crosspcai/jarvas:1.0.0
+    container_name: jarvas
     restart: unless-stopped
     ports:
       - "5580:5580"          # UI and API
     volumes:
       # On TrueNAS SCALE point this at a dataset so config and the sandbox
       # workspace survive an app update.
-      - jarvis-data:/data
+      - jarvas-data:/data
     environment:
       CROSSPCAI_HOME: /data
-      JARVIS_BIND: "0.0.0.0"
-      JARVIS_PORT: "5580"
+      JARVAS_BIND: "0.0.0.0"
+      JARVAS_PORT: "5580"
       # Point at an Ollama running on the host or another container.
       # OLLAMA_URL: "http://ollama:11434"
       # SLACK_BOT_TOKEN: "xoxb-..."     # or set it in the UI instead
@@ -30,4 +30,4 @@ services:
       retries: 3
 
 volumes:
-  jarvis-data:
+  jarvas-data:

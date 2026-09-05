@@ -9,10 +9,10 @@ build.py — produce the installable artifact for whichever platform you run it 
 
 Every platform gets the same app and the same single icon:
 
-    Windows   dist/JARVIS/JARVIS.exe        + Start Menu shortcut via install.ps1
-    Linux     dist/JARVIS/jarvis            + jarvis.desktop (one icon in the launcher)
-    macOS     dist/JARVIS.app               + drag to Applications
-    TrueNAS   docker image crosspcai/jarvis (packaging/Dockerfile)
+    Windows   dist/JARVAS/JARVAS.exe        + Start Menu shortcut via install.ps1
+    Linux     dist/JARVAS/jarvas            + jarvas.desktop (one icon in the launcher)
+    macOS     dist/JARVAS.app               + drag to Applications
+    TrueNAS   docker image crosspcai/jarvas (packaging/Dockerfile)
     CrossPC AI OS  either the Linux binary or the container
 """
 
@@ -52,7 +52,7 @@ def build_icons() -> None:
         print("! Pillow is not installed — skipping icons (pip install pillow)")
         return
 
-    out = ROOT / "jarvis" / "assets"
+    out = ROOT / "jarvas" / "assets"
     out.mkdir(parents=True, exist_ok=True)
 
     def draw(size: int) -> "Image.Image":
@@ -85,7 +85,7 @@ def build_icons() -> None:
 
     # macOS .icns needs an iconset directory and the system iconutil.
     if SYSTEM == "Darwin":
-        iconset = ROOT / "build" / "JARVIS.iconset"
+        iconset = ROOT / "build" / "JARVAS.iconset"
         iconset.mkdir(parents=True, exist_ok=True)
         for sz in (16, 32, 64, 128, 256, 512):
             master.resize((sz, sz), Image.LANCZOS).save(iconset / f"icon_{sz}x{sz}.png")
@@ -103,7 +103,7 @@ def stamp_signing_key(secret: str) -> None:
     This gates honest customers and keeps entitlements tidy. It is not copy
     protection — anything that costs money to serve must be checked server side.
     """
-    lic = ROOT / "jarvis" / "license.py"
+    lic = ROOT / "jarvas" / "license.py"
     text = lic.read_text(encoding="utf-8")
     marker = 'SIGNING_SECRET = b"'
     start = text.index(marker) + len(marker)
@@ -159,17 +159,17 @@ def build_binary() -> Path | None:
         return None
 
     _wipe(DIST)
-    _wipe(ROOT / "build" / "jarvis")
+    _wipe(ROOT / "build" / "jarvas")
 
     # No --clean: it re-does the wipe above and aborts the whole build if a
     # single cache directory is momentarily locked.
     code = run([sys.executable, "-m", "PyInstaller", "--noconfirm",
-                str(ROOT / "packaging" / "jarvis.spec")])
+                str(ROOT / "packaging" / "jarvas.spec")])
     if code != 0:
         print("! PyInstaller failed")
         return None
 
-    target = DIST / ("JARVIS.app" if SYSTEM == "Darwin" else "JARVIS")
+    target = DIST / ("JARVAS.app" if SYSTEM == "Darwin" else "JARVAS")
     print(f"OK: built {target}")
     return target
 
@@ -177,55 +177,55 @@ def build_binary() -> Path | None:
 # -- linux .deb ----------------------------------------------------------------
 
 def build_deb() -> None:
-    """A .deb so `apt install ./jarvis.deb` puts one icon in the launcher."""
+    """A .deb so `apt install ./jarvas.deb` puts one icon in the launcher."""
     if SYSTEM != "Linux":
         print("! .deb packaging only runs on Linux")
         return
-    staged = DIST / "JARVIS"
+    staged = DIST / "JARVAS"
     if not staged.exists():
         print("! build the binary first")
         return
 
-    pkg = ROOT / "build" / "deb" / "jarvis_1.0.0_amd64"
+    pkg = ROOT / "build" / "deb" / "jarvas_1.0.0_amd64"
     shutil.rmtree(pkg, ignore_errors=True)
     (pkg / "DEBIAN").mkdir(parents=True)
-    (pkg / "opt" / "jarvis").mkdir(parents=True)
+    (pkg / "opt" / "jarvas").mkdir(parents=True)
     (pkg / "usr" / "bin").mkdir(parents=True)
     (pkg / "usr" / "share" / "applications").mkdir(parents=True)
     (pkg / "usr" / "share" / "icons" / "hicolor" / "512x512" / "apps").mkdir(parents=True)
 
-    shutil.copytree(staged, pkg / "opt" / "jarvis", dirs_exist_ok=True)
-    shutil.copy(ROOT / "jarvis" / "assets" / "icon.png",
-                pkg / "usr/share/icons/hicolor/512x512/apps/jarvis.png")
-    shutil.copy(ROOT / "packaging" / "jarvis.desktop",
-                pkg / "usr/share/applications/jarvis.desktop")
+    shutil.copytree(staged, pkg / "opt" / "jarvas", dirs_exist_ok=True)
+    shutil.copy(ROOT / "jarvas" / "assets" / "icon.png",
+                pkg / "usr/share/icons/hicolor/512x512/apps/jarvas.png")
+    shutil.copy(ROOT / "packaging" / "jarvas.desktop",
+                pkg / "usr/share/applications/jarvas.desktop")
 
     (pkg / "DEBIAN" / "control").write_text(
-        "Package: jarvis\n"
+        "Package: jarvas\n"
         "Version: 1.0.0\n"
         "Section: utils\n"
         "Priority: optional\n"
         "Architecture: amd64\n"
         "Maintainer: CCD Enterprise and Development <support@crosspcai.com>\n"
-        "Description: JARVIS — the CrossPCAI control centre\n"
+        "Description: JARVAS — the CrossPCAI control centre\n"
         " Chat, agents, sandbox and Slack in one app. Runs your background\n"
         " services for you and manages every machine you install it on.\n",
         encoding="utf-8")
 
     (pkg / "DEBIAN" / "postinst").write_text(
         "#!/bin/sh\nset -e\n"
-        "ln -sf /opt/jarvis/jarvis /usr/bin/jarvis\n"
-        "chmod +x /opt/jarvis/jarvis\n"
+        "ln -sf /opt/jarvas/jarvas /usr/bin/jarvas\n"
+        "chmod +x /opt/jarvas/jarvas\n"
         "update-desktop-database >/dev/null 2>&1 || true\n"
         "gtk-update-icon-cache -f /usr/share/icons/hicolor >/dev/null 2>&1 || true\n",
         encoding="utf-8")
     os.chmod(pkg / "DEBIAN" / "postinst", 0o755)
 
     (pkg / "DEBIAN" / "prerm").write_text(
-        "#!/bin/sh\nset -e\nrm -f /usr/bin/jarvis\n", encoding="utf-8")
+        "#!/bin/sh\nset -e\nrm -f /usr/bin/jarvas\n", encoding="utf-8")
     os.chmod(pkg / "DEBIAN" / "prerm", 0o755)
 
-    out = DIST / "jarvis_1.0.0_amd64.deb"
+    out = DIST / "jarvas_1.0.0_amd64.deb"
     if run(["dpkg-deb", "--build", "--root-owner-group", str(pkg), str(out)]) == 0:
         print(f"OK: {out}")
 
@@ -251,9 +251,9 @@ def main() -> int:
     if SYSTEM == "Windows":
         print("  powershell -ExecutionPolicy Bypass -File install.ps1")
     elif SYSTEM == "Darwin":
-        print("  cp -R dist/JARVIS.app /Applications/")
+        print("  cp -R dist/JARVAS.app /Applications/")
     else:
-        print("  sudo ./install.sh          # or: sudo apt install ./dist/jarvis_1.0.0_amd64.deb")
+        print("  sudo ./install.sh          # or: sudo apt install ./dist/jarvas_1.0.0_amd64.deb")
     return 0
 
 

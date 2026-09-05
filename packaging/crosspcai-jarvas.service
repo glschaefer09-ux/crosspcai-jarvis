@@ -1,0 +1,30 @@
+# JARVAS as a background service.
+#
+# Desktop install (keeps agents running after you close the window):
+#     mkdir -p ~/.config/systemd/user
+#     cp packaging/crosspcai-jarvas.service ~/.config/systemd/user/
+#     systemctl --user enable --now crosspcai-jarvas
+#
+# Server install: change ExecStart to add --server, then use `systemctl --user`
+# with lingering enabled (`sudo loginctl enable-linger $USER`) so it survives
+# logout.
+
+[Unit]
+Description=JARVAS — CrossPCAI control centre
+Documentation=https://crosspcai.com/jarvas
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/jarvas/jarvas --server --bind 0.0.0.0
+Restart=on-failure
+RestartSec=5
+# JARVAS supervises Hermes and the sandbox itself; give it time to stop them.
+TimeoutStopSec=30
+KillMode=mixed
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -3,8 +3,8 @@
 entry.py — the frozen build's entry point.
 
 PyInstaller compiles its entry script as a top-level module, so freezing
-jarvis/__main__.py directly breaks every `from . import ...` inside it. This
-shim imports the package properly instead, which keeps `python -m jarvis` and
+jarvas/__main__.py directly breaks every `from . import ...` inside it. This
+shim imports the package properly instead, which keeps `python -m jarvas` and
 the shipped binary running the exact same code path.
 """
 
@@ -17,6 +17,6 @@ if __name__ == "__main__":
 
     multiprocessing.freeze_support()
 
-    from jarvis.__main__ import main
+    from jarvas.__main__ import main
 
     sys.exit(main())
