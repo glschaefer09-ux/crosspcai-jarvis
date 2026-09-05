@@ -12,6 +12,7 @@ commands and post to Slack from inside a chat turn.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 
@@ -47,10 +48,21 @@ _FENCED_RE = re.compile(r"```(?:jarvis|json)?\s*(\{.*?\})\s*```", re.S)
 
 
 def _valid(raw: str) -> dict | None:
+    """Parse a candidate tool call.
+
+    Falls back to ast.literal_eval because small local models routinely emit
+    Python-style dicts - {'tool': 'status.check'} with single quotes - which is
+    not JSON. Rejecting those meant the raw text leaked into the reply as if it
+    were the answer. literal_eval only builds literals, so it cannot execute
+    anything from model output.
+    """
     try:
         call = json.loads(raw)
     except json.JSONDecodeError:
-        return None
+        try:
+            call = ast.literal_eval(raw)
+        except (ValueError, SyntaxError, MemoryError, RecursionError):
+            return None
     return call if isinstance(call, dict) and call.get("tool") else None
 
 
